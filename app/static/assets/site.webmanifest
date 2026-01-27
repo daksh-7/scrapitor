@@ -3,7 +3,7 @@
   "short_name": "Scrapitor",
   "icons": [
     {
-      "src": "logo.svg",
+      "src": "logo_black.svg",
       "sizes": "any",
       "type": "image/svg+xml",
       "purpose": "any maskable"

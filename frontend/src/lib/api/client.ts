@@ -35,9 +35,7 @@ async function request<T>(url: string, options?: RequestInit): Promise<T> {
     try {
       const data = await res.json();
       if (data.error) message = data.error;
-    } catch {
-      // ignore parse errors
-    }
+    } catch {}
     throw new ApiError(message, res.status);
   }
 
@@ -52,7 +50,6 @@ async function getText(url: string): Promise<string> {
   return res.text();
 }
 
-// Logs API
 export async function getLogs(): Promise<LogsResponse> {
   return request<LogsResponse>('/logs');
 }
@@ -101,7 +98,6 @@ export async function deleteParsedFiles(logName: string, files: string[]): Promi
   });
 }
 
-// Parser API
 export async function getParserSettings(): Promise<ParserSettings> {
   return request<ParserSettings>('/parser-settings');
 }
@@ -137,15 +133,8 @@ export async function rewriteParsed(options: {
 }
 
 export async function exportToSillyTavern(options: {
-  mode: 'from_parser' | 'from_txt';
-  // For from_parser mode
-  log_files?: string[];
-  parser_mode?: 'default' | 'custom';
-  include_tags?: string[];
-  exclude_tags?: string[];
-  // For from_txt mode
-  log_name?: string;
-  txt_files?: string[];
+  log_name: string;
+  txt_files: string[];
 }): Promise<SillyTavernExportResponse> {
   return request<SillyTavernExportResponse>('/export-sillytavern', {
     method: 'POST',
@@ -153,7 +142,6 @@ export async function exportToSillyTavern(options: {
   });
 }
 
-// System API
 export async function getTunnel(): Promise<TunnelResponse> {
   return request<TunnelResponse>('/tunnel');
 }
@@ -162,7 +150,6 @@ export async function getHealth(): Promise<HealthResponse> {
   return request<HealthResponse>('/health');
 }
 
-// Re-export types
 export type { ApiError };
 export * from './types';
 

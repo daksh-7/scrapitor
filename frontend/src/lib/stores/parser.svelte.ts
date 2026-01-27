@@ -1,21 +1,14 @@
-import { getParserSettings, saveParserSettings, getParserTags, rewriteParsed, exportToSillyTavern } from '$lib/api';
+import { getParserSettings, saveParserSettings, getParserTags, rewriteParsed, exportToSillyTavern, getParsedList } from '$lib/api';
 
 class ParserStore {
-  // Settings
   mode = $state<'default' | 'custom'>('default');
-  includeTags = $state<Set<string>>(new Set());
   excludeTags = $state<Set<string>>(new Set());
   allTags = $state<Set<string>>(new Set());
-  
-  // Tag detection metadata
   tagToFiles = $state<Record<string, string[]>>({});
   detectedFiles = $state<string[]>([]);
-  
-  // Loading state
   loading = $state(false);
   error = $state<string | null>(null);
 
-  // Computed
   get isCustomMode() {
     return this.mode === 'custom';
   }
@@ -24,14 +17,12 @@ class ParserStore {
     return [...this.allTags].sort((a, b) => a.toLowerCase().localeCompare(b.toLowerCase()));
   }
 
-  getTagState(tag: string): 'include' | 'exclude' | 'neutral' {
+  getTagState(tag: string): 'include' | 'exclude' {
     const key = tag.toLowerCase();
-    if (this.includeTags.has(key)) return 'include';
     if (this.excludeTags.has(key)) return 'exclude';
-    return 'neutral';
+    return 'include';
   }
 
-  // Actions
   async loadSettings() {
     this.loading = true;
     this.error = null;
@@ -40,7 +31,6 @@ class ParserStore {
       const settings = await getParserSettings();
       this.mode = settings.mode;
       this.excludeTags = new Set((settings.exclude_tags || []).map(t => t.toLowerCase()));
-      this.includeTags = new Set(); // Include tags are ephemeral
     } catch (e) {
       this.error = e instanceof Error ? e.message : 'Failed to load settings';
     } finally {
@@ -69,47 +59,26 @@ class ParserStore {
     this.mode = mode;
   }
 
-  // Tag state cycling: neutral → include → exclude → neutral
   cycleTagState(tag: string) {
     const key = tag.toLowerCase();
+    const newExclude = new Set(this.excludeTags);
     
-    if (this.includeTags.has(key)) {
-      // include → exclude
-      const newInclude = new Set(this.includeTags);
-      newInclude.delete(key);
-      this.includeTags = newInclude;
-      
-      const newExclude = new Set(this.excludeTags);
-      newExclude.add(key);
-      this.excludeTags = newExclude;
-    } else if (this.excludeTags.has(key)) {
-      // exclude → neutral (which acts as include for display purposes)
-      const newExclude = new Set(this.excludeTags);
+    if (this.excludeTags.has(key)) {
       newExclude.delete(key);
-      this.excludeTags = newExclude;
-      
-      const newInclude = new Set(this.includeTags);
-      newInclude.add(key);
-      this.includeTags = newInclude;
     } else {
-      // neutral → include
-      const newInclude = new Set(this.includeTags);
-      newInclude.add(key);
-      this.includeTags = newInclude;
+      newExclude.add(key);
     }
+    this.excludeTags = newExclude;
   }
 
   includeAll() {
-    this.includeTags = new Set([...this.allTags].map(t => t.toLowerCase()));
     this.excludeTags = new Set();
   }
 
   excludeAll() {
     this.excludeTags = new Set([...this.allTags].map(t => t.toLowerCase()));
-    this.includeTags = new Set();
   }
 
-  // Tag detection
   async detectTags(files?: string[]) {
     this.loading = true;
     this.error = null;
@@ -117,12 +86,10 @@ class ParserStore {
     try {
       const data = await getParserTags(files);
       
-      // Update all tags with detected ones + first_message
       const tags = new Set(data.tags.map(t => t.toLowerCase()));
       tags.add('first_message');
       this.allTags = tags;
       
-      // Store file mapping
       this.tagToFiles = Object.fromEntries(
         Object.entries(data.by_tag).map(([tag, files]) => [
           tag.toLowerCase(),
@@ -141,22 +108,22 @@ class ParserStore {
     }
   }
 
-  // Get files that have a specific tag
   getFilesForTag(tag: string): string[] {
     return this.tagToFiles[tag.toLowerCase()] || [];
   }
 
-  // Rewrite operations
   async rewrite(mode: 'all' | 'latest' | 'custom', files?: string[]) {
     this.loading = true;
     this.error = null;
 
     try {
+      const includeTags = [...this.allTags].filter(t => !this.excludeTags.has(t.toLowerCase()));
+      
       const result = await rewriteParsed({
         mode,
         files,
         parser_mode: this.mode,
-        include_tags: [...this.includeTags],
+        include_tags: includeTags,
         exclude_tags: [...this.excludeTags],
       });
       return result;
@@ -175,27 +142,31 @@ class ParserStore {
     const newTags = new Set(this.allTags);
     newTags.add(key);
     this.allTags = newTags;
-    
-    // New tags start as excluded
-    const newExclude = new Set(this.excludeTags);
-    newExclude.add(key);
-    this.excludeTags = newExclude;
   }
 
-  // Export to SillyTavern
-  async exportSillyTavern(mode: 'latest' | 'custom', files?: string[]) {
+  async exportSillyTavernFromTxt(logNames: string[]) {
     this.loading = true;
     this.error = null;
 
     try {
-      const result = await exportToSillyTavern({
-        mode: 'from_parser',
-        log_files: mode === 'custom' && files ? files : undefined,
-        parser_mode: this.mode,
-        include_tags: [...this.includeTags],
-        exclude_tags: [...this.excludeTags],
-      });
-      return result;
+      const allExports: Array<{name: string; filename: string; json: Record<string, unknown>}> = [];
+
+      for (const logName of logNames) {
+        const parsed = await getParsedList(logName);
+        if (!parsed.versions || parsed.versions.length === 0) {
+          continue;
+        }
+
+        const txtFiles = parsed.versions.map(v => v.file);
+        const result = await exportToSillyTavern({
+          log_name: logName,
+          txt_files: txtFiles,
+        });
+
+        allExports.push(...result.exports);
+      }
+
+      return { exports: allExports, count: allExports.length };
     } catch (e) {
       this.error = e instanceof Error ? e.message : 'Export failed';
       throw e;
@@ -206,5 +177,3 @@ class ParserStore {
 }
 
 export const parserStore = new ParserStore();
-
-

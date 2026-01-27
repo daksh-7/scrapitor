@@ -20,12 +20,9 @@
   let confirmMessage = $state('');
   let confirmAction = $state<() => void>(() => {});
   
-  // Inline rename state for parsed files
   let renamingParsedFile = $state<string | null>(null);
   let parsedRenameValue = $state('');
   let parsedRenameInputRef = $state<HTMLInputElement | null>(null);
-
-  // Parsed file selection for export
   let selectedParsedFiles = $state<Set<string>>(new Set());
   let selectingParsedFiles = $state(false);
 
@@ -39,7 +36,6 @@
 
   const visibleLogs = $derived(filteredLogs.slice(0, 100));
 
-  // JSON syntax highlighting function
   function highlightJson(content: string): string {
     const escaped = content
       .replace(/&/g, '&amp;')
@@ -94,9 +90,7 @@
       logsStore.clearCachesFor([parsedModalLogName]);
       const data = await logsStore.getParsedVersions(parsedModalLogName);
       parsedVersions = data.versions;
-    } catch {
-      // Silent fail
-    }
+    } catch {}
   }
 
   async function openParsedContent(logName: string, fileName: string) {
@@ -146,9 +140,7 @@
       uiStore.notify(`Wrote ${result.rewritten} file(s)`);
       logsStore.cancelSelection();
       await logsStore.refresh();
-    } catch {
-      // Error handled by store
-    }
+    } catch {}
   }
 
   function formatDate(mtime: number): string {
@@ -160,7 +152,6 @@
     return `${Math.max(1, Math.round(size / 1024))} KB`;
   }
 
-  // Parsed file inline rename functions
   function startParsedRename(fileName: string) {
     parsedRenameValue = fileName.replace(/\.txt$/, '');
     renamingParsedFile = fileName;
@@ -213,7 +204,6 @@
     }, 100);
   }
 
-  // Export functions
   function downloadJson(data: object, filename: string) {
     const blob = new Blob([JSON.stringify(data, null, 2)], { type: 'application/json' });
     const url = URL.createObjectURL(blob);
@@ -233,11 +223,17 @@
       return;
     }
     try {
-      // First write the output
       const writeResult = await parserStore.rewrite('custom', files);
+      const logNames = writeResult.results.map(r => r.file);
       
-      // Then export to SillyTavern
-      const exportResult = await parserStore.exportSillyTavern('custom', files);
+      if (logNames.length === 0) {
+        uiStore.notify(`Wrote ${writeResult.rewritten} file(s), no exports generated`, 'info');
+        logsStore.cancelSelection();
+        await logsStore.refresh();
+        return;
+      }
+      
+      const exportResult = await parserStore.exportSillyTavernFromTxt(logNames);
       
       if (exportResult.exports.length > 0) {
         for (const exp of exportResult.exports) {
@@ -249,12 +245,9 @@
       }
       logsStore.cancelSelection();
       await logsStore.refresh();
-    } catch {
-      // Error handled by store
-    }
+    } catch {}
   }
 
-  // Parsed file export functions
   function toggleParsedFileSelection(fileName: string) {
     const newSet = new Set(selectedParsedFiles);
     if (newSet.has(fileName)) {
@@ -291,7 +284,6 @@
     }
     try {
       const result = await exportToSillyTavern({
-        mode: 'from_txt',
         log_name: parsedModalLogName,
         txt_files: files,
       });

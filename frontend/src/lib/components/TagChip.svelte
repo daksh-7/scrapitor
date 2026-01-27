@@ -1,7 +1,7 @@
 <script lang="ts">
   interface Props {
     tag: string;
-    state: 'include' | 'exclude' | 'neutral';
+    state: 'include' | 'exclude';
     onclick: () => void;
     onmouseenter?: () => void;
     onmouseleave?: () => void;
@@ -18,7 +18,7 @@
   class="tag-chip"
   class:include={state === 'include'}
   class:exclude={state === 'exclude'}
-  title="Click to toggle: Include → Exclude → Neutral"
+  title="Click to toggle"
   {onclick}
   {onmouseenter}
   {onmouseleave}

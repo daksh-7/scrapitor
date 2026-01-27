@@ -14,18 +14,14 @@
     try {
       await parserStore.save();
       uiStore.notify('Settings saved');
-    } catch {
-      // Error handled by store
-    }
+    } catch {}
   }
 
   async function detectLatest() {
     try {
       await parserStore.detectTags();
       uiStore.notify(`Detected ${parserStore.allTags.size} tags`);
-    } catch {
-      // Error handled by store
-    }
+    } catch {}
   }
 
   function openTagDetectModal() {
@@ -42,9 +38,7 @@
       await parserStore.detectTags([...tagDetectSelected]);
       uiStore.notify(`Detected ${parserStore.allTags.size} tags`);
       tagDetectModalOpen = false;
-    } catch {
-      // Error handled by store
-    }
+    } catch {}
   }
 
   function toggleTagDetectAll() {
@@ -61,9 +55,7 @@
       const result = await parserStore.rewrite('latest');
       uiStore.notify(`Wrote ${result.rewritten} file(s)`);
       await logsStore.refresh();
-    } catch {
-      // Error handled by store
-    }
+    } catch {}
   }
 
   function startCustomSelection() {
@@ -95,11 +87,16 @@
   async function exportLatest() {
     exportModalOpen = false;
     try {
-      // First write the output
       const writeResult = await parserStore.rewrite('latest');
+      const logNames = writeResult.results.map(r => r.file);
       
-      // Then export to SillyTavern
-      const exportResult = await parserStore.exportSillyTavern('latest');
+      if (logNames.length === 0) {
+        uiStore.notify(`Wrote ${writeResult.rewritten} file(s), no exports generated`, 'info');
+        await logsStore.refresh();
+        return;
+      }
+      
+      const exportResult = await parserStore.exportSillyTavernFromTxt(logNames);
       
       if (exportResult.exports.length > 0) {
         for (const exp of exportResult.exports) {
@@ -110,9 +107,7 @@
         uiStore.notify(`Wrote ${writeResult.rewritten} file(s), no exports generated`, 'info');
       }
       await logsStore.refresh();
-    } catch {
-      // Error handled by store
-    }
+    } catch {}
   }
 
   function startExportSelection() {
