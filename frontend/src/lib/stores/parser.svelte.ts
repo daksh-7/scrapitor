@@ -157,10 +157,11 @@ class ParserStore {
           continue;
         }
 
-        const txtFiles = parsed.versions.map(v => v.file);
+        // Export only the latest version (first in list, sorted by mtime desc)
+        const latestTxt = parsed.versions[0].file;
         const result = await exportToSillyTavern({
           log_name: logName,
-          txt_files: txtFiles,
+          txt_files: [latestTxt],
         });
 
         allExports.push(...result.exports);

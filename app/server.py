@@ -1000,13 +1000,9 @@ def create_app() -> Flask:
 
                 content = txt_path.read_text(encoding='utf-8-sig')
 
-                # Name is filename minus .txt
+                # Name is filename minus .txt, then strip version suffix (.v1, .v2, etc.)
                 name = txt_path.stem
-                # Handle "[Name]'s Persona" pattern - extract just the name
-                # Support various apostrophe characters: ' ' ʼ ʻ ʽ
-                persona_match = re.match(r"^(.+?)[''ʼʻʽ]s\s+persona$", name, re.IGNORECASE)
-                if persona_match:
-                    name = persona_match.group(1).strip()
+                name = re.sub(r"\.v\d+$", "", name)
 
                 # Split by "First Message" marker
                 first_mes_marker = "First Message"

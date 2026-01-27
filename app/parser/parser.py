@@ -199,6 +199,11 @@ def process_json(
     if has_char_block:
         char_name, open_start, open_end = first  # type: ignore[misc]
         content_start_char, block_end_char, inner_raw = _extract_tag_content(system_content, char_name, open_end)
+        # Strip "'s Persona" suffix from character name (common JanitorAI pattern)
+        # Support various apostrophe characters: ' ' ʼ ʻ ʽ
+        persona_suffix = re.match(r"^(.+?)[''ʼʻʽ]s\s+persona$", char_name, re.IGNORECASE)
+        if persona_suffix:
+            char_name = persona_suffix.group(1).strip()
     else:
         # Fallback: no character tag found. Proceed with untagged/scenario/first message handling
         char_name = "character"

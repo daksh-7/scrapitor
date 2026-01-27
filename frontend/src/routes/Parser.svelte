@@ -118,7 +118,7 @@
         onclick={() => parserStore.setMode('default')}
       >
         <span class="mode-name">Default</span>
-        <span class="mode-desc">No tag filtering. Writes character content, Scenario, and First Message.</span>
+        <span class="mode-desc">No tag filtering. Writes everything.</span>
       </button>
       <button 
         class="mode-option"
