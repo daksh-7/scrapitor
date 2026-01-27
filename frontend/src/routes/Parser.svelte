@@ -8,7 +8,6 @@
   let tagDetectModalOpen = $state(false);
   let tagDetectSelected = $state<Set<string>>(new Set());
   let writeModalOpen = $state(false);
-  let exportModalOpen = $state(false);
 
   async function saveSettings() {
     try {
@@ -85,7 +84,6 @@
   }
 
   async function exportLatest() {
-    exportModalOpen = false;
     try {
       const writeResult = await parserStore.rewrite('latest');
       const logNames = writeResult.results.map(r => r.file);
@@ -108,11 +106,6 @@
       }
       await logsStore.refresh();
     } catch {}
-  }
-
-  function startExportSelection() {
-    exportModalOpen = false;
-    logsStore.startSelection('export');
   }
 </script>
 
@@ -198,7 +191,7 @@
       <Icon name="write" size={14} />
       Write Output
     </button>
-    <button class="btn btn-secondary" onclick={() => exportModalOpen = true}>
+    <button class="btn btn-secondary" onclick={exportLatest}>
       <Icon name="download" size={14} />
       Export to SillyTavern
     </button>
@@ -281,38 +274,6 @@
             <span class="write-option-desc">Process the most recent log file</span>
           </button>
           <button class="write-option" onclick={startCustomSelection}>
-            <span class="write-option-title">Custom Selection</span>
-            <span class="write-option-desc">Choose specific files from Activity</span>
-          </button>
-        </div>
-      </div>
-    </div>
-  </div>
-{/if}
-
-<!-- Export to SillyTavern Modal -->
-{#if exportModalOpen}
-  <div class="modal" role="dialog" aria-modal="true">
-    <button class="modal-backdrop" onclick={() => exportModalOpen = false} aria-label="Close modal"></button>
-    <div class="modal-panel modal-panel--sm">
-      <div class="modal-header">
-        <h2 class="modal-title">Export to SillyTavern</h2>
-        <div class="modal-actions">
-          <button class="btn btn-ghost" onclick={() => exportModalOpen = false}>
-            <Icon name="close" size={14} />
-          </button>
-        </div>
-      </div>
-      <div class="modal-body">
-        <p class="write-description">
-          Write parsed output and export to SillyTavern-compatible JSON (chara_card_v3).
-        </p>
-        <div class="write-options">
-          <button class="write-option" onclick={exportLatest}>
-            <span class="write-option-title">Export Latest</span>
-            <span class="write-option-desc">Process and export the most recent log file</span>
-          </button>
-          <button class="write-option" onclick={startExportSelection}>
             <span class="write-option-title">Custom Selection</span>
             <span class="write-option-desc">Choose specific files from Activity</span>
           </button>

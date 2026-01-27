@@ -217,35 +217,26 @@
   }
 
   async function exportSelectedLogs() {
-    const files = [...logsStore.selectedLogs];
-    if (files.length === 0) {
+    const logNames = [...logsStore.selectedLogs];
+    if (logNames.length === 0) {
       uiStore.notify('No files selected', 'info');
       return;
     }
     try {
-      const writeResult = await parserStore.rewrite('custom', files);
-      const logNames = writeResult.results.map(r => r.file);
-      
-      if (logNames.length === 0) {
-        uiStore.notify(`Wrote ${writeResult.rewritten} file(s), no exports generated`, 'info');
-        logsStore.cancelSelection();
-        await logsStore.refresh();
-        return;
-      }
-      
       const exportResult = await parserStore.exportSillyTavernFromTxt(logNames);
       
       if (exportResult.exports.length > 0) {
         for (const exp of exportResult.exports) {
           downloadJson(exp.json, exp.filename);
         }
-        uiStore.notify(`Wrote ${writeResult.rewritten} file(s), exported ${exportResult.count} to SillyTavern`);
+        uiStore.notify(`Exported ${exportResult.count} file(s) to SillyTavern`);
       } else {
-        uiStore.notify(`Wrote ${writeResult.rewritten} file(s), no exports generated`, 'info');
+        uiStore.notify('No parsed TXT files found for selected logs', 'info');
       }
       logsStore.cancelSelection();
-      await logsStore.refresh();
-    } catch {}
+    } catch (e) {
+      uiStore.notify(e instanceof Error ? e.message : 'Export failed', 'error');
+    }
   }
 
   function toggleParsedFileSelection(fileName: string) {
@@ -350,6 +341,10 @@
             </button>
           </div>
         {:else}
+          <button class="btn btn-secondary" onclick={() => logsStore.startSelection('export')}>
+            <Icon name="export" size={14} />
+            Export...
+          </button>
           <button class="btn btn-danger" onclick={startDeleteSelection}>
             <Icon name="trash" size={14} />
             Delete...
@@ -529,6 +524,7 @@
   .logs-actions {
     display: flex;
     justify-content: flex-end;
+    gap: var(--space-sm);
   }
 
   .selection-bar {

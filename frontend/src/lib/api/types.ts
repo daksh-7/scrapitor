@@ -65,6 +65,7 @@ export interface DeleteResult {
 export interface DeleteResponse {
   deleted: number;
   results: DeleteResult[];
+  error?: string;
 }
 
 export interface TunnelResponse {
@@ -88,7 +89,6 @@ export interface RenameResponse {
 export interface SillyTavernExport {
   name: string;
   filename: string;
-  source_log?: string;
   source_txt?: string;
   json: Record<string, unknown>;
 }
