@@ -65,13 +65,13 @@
           <input 
             type="text" 
             class="input input-mono" 
-            value="mistralai/devstral-2512:free" 
+            value="nvidia/nemotron-3-super-120b-a12b:free" 
             readonly 
             aria-label="Model Name Preset" 
           />
           <button 
             class="btn btn-accent" 
-            onclick={() => copyText('mistralai/devstral-2512:free')}
+            onclick={() => copyText('nvidia/nemotron-3-super-120b-a12b:free')}
             aria-label="Copy model name"
           >
             <Icon name="copy" size={14} />
@@ -145,7 +145,7 @@
       <li>
         <span class="step-number">3</span>
         <div class="step-content">
-          <p>Set <strong>Model name</strong> to: <code>mistralai/devstral-2512:free</code></p>
+          <p>Set <strong>Model name</strong> to: <code>nvidia/nemotron-3-super-120b-a12b:free</code></p>
         </div>
       </li>
       <li>

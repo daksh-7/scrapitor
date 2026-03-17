@@ -300,7 +300,7 @@ pkg install net-tools iproute2  # For better LAN IP detection
 
 1. Open a character chat in JanitorAI
 2. Click **"using proxy"** and create a new proxy configuration
-3. Set **Model name** to: `mistralai/devstral-2512:free`
+3. Set **Model name** to: `nvidia/nemotron-3-super-120b-a12b:free`
 4. Set **Proxy URL** to your Cloudflare endpoint (ends with `/openrouter-cc`)
 5. Set **API Key** to your [OpenRouter API key](https://openrouter.ai/keys)
 6. Click **Save changes**, then **Save Settings**, and refresh the page
