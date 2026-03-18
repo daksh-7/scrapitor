@@ -259,6 +259,67 @@ stop_stale_processes() {
     echo "$total"
 }
 
+list_port_listeners() {
+    local port="$1"
+    local exclude_pid="${2:-}"
+
+    if command -v lsof &>/dev/null; then
+        lsof -nP -iTCP:"$port" -sTCP:LISTEN 2>/dev/null | tail -n +2 | while read -r cmd pid _ _ _ _ _ _ addr _; do
+            [[ -n "$exclude_pid" && "$pid" == "$exclude_pid" ]] && continue
+            printf '%s\t%s\t%s\n' "$addr" "$pid" "$cmd"
+        done
+        return 0
+    fi
+
+    if command -v ss &>/dev/null; then
+        ss -ltnp "sport = :$port" 2>/dev/null | tail -n +2 | while read -r _ _ _ addr _ rest; do
+            local pid
+            pid=$(printf '%s' "$rest" | awk -F'pid=' '{print $2}' | awk -F',' '{print $1}')
+            local cmd
+            cmd=$(printf '%s' "$rest" | awk -F'"' '{print $2}')
+            [[ -z "$pid" ]] && continue
+            [[ -n "$exclude_pid" && "$pid" == "$exclude_pid" ]] && continue
+            printf '%s\t%s\t%s\n' "$addr" "$pid" "${cmd:-unknown}"
+        done
+    fi
+}
+
+resolve_available_port() {
+    local preferred_port="$1"
+    local python_exe="$2"
+    local scan_count="${3:-100}"
+
+    "$python_exe" - "$preferred_port" "$scan_count" <<'PY'
+import socket
+import sys
+
+preferred = int(sys.argv[1])
+scan_count = max(1, int(sys.argv[2]))
+scan_end = min(65535, preferred + scan_count - 1)
+
+def can_bind(port: int) -> bool:
+    for host in ("127.0.0.1", "0.0.0.0"):
+        sock = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
+        try:
+            sock.bind((host, port))
+        except OSError:
+            return False
+        finally:
+            sock.close()
+    return True
+
+for port in range(preferred, scan_end + 1):
+    if can_bind(port):
+        print(port)
+        raise SystemExit(0)
+
+sock = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
+sock.bind(("0.0.0.0", 0))
+print(sock.getsockname()[1])
+sock.close()
+PY
+}
+
 # ═══════════════════════════════════════════════════════════════════════════════
 #  Health Checks
 # ═══════════════════════════════════════════════════════════════════════════════
@@ -282,12 +343,12 @@ wait_for_health() {
         
         # Try health endpoint
         for host in "127.0.0.1" "localhost"; do
-            if curl -s -f --connect-timeout 2 --max-time 2 "http://${host}:${port}/health" &>/dev/null; then
-                return 0
-            fi
-            # Try root as fallback
-            if curl -s -f --connect-timeout 2 --max-time 2 "http://${host}:${port}/" &>/dev/null; then
-                return 0
+            local payload=""
+            if payload=$(curl -s -f --connect-timeout 2 --max-time 2 "http://${host}:${port}/health" 2>/dev/null); then
+                if printf '%s' "$payload" | grep -Eq "\"status\"[[:space:]]*:[[:space:]]*\"healthy\"" &&
+                   printf '%s' "$payload" | grep -Eq "\"port\"[[:space:]]*:[[:space:]]*${port}([[:space:]]*[,}])"; then
+                    return 0
+                fi
             fi
         done
         

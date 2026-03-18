@@ -194,6 +194,24 @@ function Main {
             -VenvPython $Config.VenvPython `
             -VenvPythonW $Config.VenvPythonW `
             -PidFile $Config.PidFile
+
+        $requestedPort = $Config.Port
+        $portSelection = Resolve-AvailablePort -PreferredPort $requestedPort
+        if (-not $portSelection.Success) {
+            Show-ErrorBox -Title "Port Selection Failed" -Details @(
+                "Could not find an available TCP port to start Scrapitor.",
+                "",
+                $portSelection.Error
+            ) -CountdownSeconds 20
+            return 1
+        }
+
+        if ($portSelection.WasFallback) {
+            $Config.Port = $portSelection.Port
+            Set-RuntimeEnvironment -Config $Config
+
+            Write-Status -Message "Port $requestedPort in use, using :$($Config.Port)" -Type Warning
+        }
         
         # ── Start Flask ───────────────────────────────────────────────────────
         Write-Section -Title "Starting Services"
@@ -233,12 +251,20 @@ function Main {
         Clear-SpinnerLine
         
         if (-not $healthOk) {
+            $portConflicts = @(Get-PortListeners -Port $Config.Port -ExcludeProcessIds @($flaskProcess.Id))
             $flaskLogs = Get-LogContent -Path $flaskErr -TailLines 10
-            Show-ErrorBox -Title "Flask Health Check Failed" -Details @(
+            $details = @(
                 "Server did not respond within $($Config.HealthTimeout) seconds.",
                 "",
                 "Port $($Config.Port) may be in use."
-            ) -CountdownSeconds 15
+            )
+
+            foreach ($listener in $portConflicts | Select-Object -First 3) {
+                $command = if ($listener.CommandLine) { $listener.CommandLine } elseif ($listener.ExecutablePath) { $listener.ExecutablePath } else { $listener.Name }
+                $details += "[$($listener.LocalAddress):$($listener.LocalPort)] PID $($listener.ProcessId) - $command"
+            }
+
+            Show-ErrorBox -Title "Flask Health Check Failed" -Details $details -CountdownSeconds 15
             Stop-AllManagedProcesses
             return 1
         }

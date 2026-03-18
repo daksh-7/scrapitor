@@ -104,7 +104,7 @@ ui_init() {
     if [[ "$UI_UNICODE" == "true" ]]; then
         ICON_SUCCESS="✓"
         ICON_ERROR="✗"
-        ICON_WARNING="⚠"
+        ICON_WARNING="◆"
         ICON_INFO="○"
         ICON_PENDING="…"
         ICON_ARROW="▶"

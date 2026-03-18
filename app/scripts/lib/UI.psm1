@@ -49,7 +49,7 @@ function Initialize-Icons {
         $script:Icons = @{
             Success  = [string][char]0x2713  # ✓
             Error    = [string][char]0x2717  # ✗
-            Warning  = [string][char]0x26A0  # ⚠
+            Warning  = [string][char]0x25C6  # ◆
             Info     = [string][char]0x25CB  # ○
             Pending  = [string][char]0x2026  # …
             Arrow    = [string][char]0x25B6  # ▶

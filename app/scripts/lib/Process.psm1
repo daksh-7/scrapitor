@@ -201,6 +201,111 @@ function Stop-StaleProcesses {
     return $stopped
 }
 
+function Get-PortListeners {
+    [CmdletBinding()]
+    param(
+        [Parameter(Mandatory)][int]$Port,
+        [int[]]$ExcludeProcessIds = @()
+    )
+
+    $listeners = @()
+
+    try {
+        $connections = Get-NetTCPConnection -State Listen -LocalPort $Port -ErrorAction SilentlyContinue |
+            Sort-Object LocalAddress, OwningProcess -Unique
+
+        foreach ($connection in $connections) {
+            if ($ExcludeProcessIds -contains $connection.OwningProcess) {
+                continue
+            }
+
+            $process = Get-CimInstance Win32_Process -Filter "ProcessId = $($connection.OwningProcess)" -ErrorAction SilentlyContinue
+
+            $listeners += [pscustomobject]@{
+                LocalAddress   = $connection.LocalAddress
+                LocalPort      = $connection.LocalPort
+                ProcessId      = $connection.OwningProcess
+                Name           = $process.Name
+                ExecutablePath = $process.ExecutablePath
+                CommandLine    = $process.CommandLine
+            }
+        }
+    }
+    catch { }
+
+    return $listeners
+}
+
+function Test-PortAvailable {
+    [CmdletBinding()]
+    param(
+        [Parameter(Mandatory)][int]$Port
+    )
+
+    if (@(Get-PortListeners -Port $Port).Count -gt 0) {
+        return $false
+    }
+
+    $listener = $null
+    try {
+        $listener = [System.Net.Sockets.TcpListener]::new([System.Net.IPAddress]::Any, $Port)
+        $listener.Start()
+        return $true
+    }
+    catch {
+        return $false
+    }
+    finally {
+        if ($listener) {
+            try { $listener.Stop() } catch { }
+        }
+    }
+}
+
+function Resolve-AvailablePort {
+    [CmdletBinding()]
+    param(
+        [Parameter(Mandatory)][int]$PreferredPort,
+        [int]$ScanCount = 100
+    )
+
+    $scanLimit = [Math]::Min(65535, $PreferredPort + [Math]::Max($ScanCount - 1, 0))
+    for ($port = $PreferredPort; $port -le $scanLimit; $port++) {
+        if (Test-PortAvailable -Port $port) {
+            return [pscustomobject]@{
+                Success     = $true
+                Port        = $port
+                Preferred   = $PreferredPort
+                WasFallback = ($port -ne $PreferredPort)
+            }
+        }
+    }
+
+    $listener = $null
+    try {
+        $listener = [System.Net.Sockets.TcpListener]::new([System.Net.IPAddress]::Any, 0)
+        $listener.Start()
+        $port = ($listener.LocalEndpoint -as [System.Net.IPEndPoint]).Port
+        return [pscustomobject]@{
+            Success     = $true
+            Port        = $port
+            Preferred   = $PreferredPort
+            WasFallback = $true
+        }
+    }
+    catch {
+        return [pscustomobject]@{
+            Success = $false
+            Error   = $_.Exception.Message
+        }
+    }
+    finally {
+        if ($listener) {
+            try { $listener.Stop() } catch { }
+        }
+    }
+}
+
 # ── Health Checks ─────────────────────────────────────────────────────────────
 
 function Wait-ForHealth {
@@ -225,8 +330,21 @@ function Wait-ForHealth {
         
         foreach ($hostName in @("127.0.0.1", "localhost")) {
             try {
-                $resp = Invoke-WebRequest -Uri "http://${hostName}:${Port}/health" -UseBasicParsing -TimeoutSec 2 -ErrorAction Stop
-                if ($resp.StatusCode -eq 200) {
+                $resp = Invoke-RestMethod -Uri "http://${hostName}:${Port}/health" -TimeoutSec 2 -ErrorAction Stop
+                $isHealthy = $false
+
+                if ($null -ne $resp -and $resp.PSObject.Properties.Name -contains 'status') {
+                    $isHealthy = ($resp.status -eq 'healthy')
+                }
+
+                if ($isHealthy -and $resp.PSObject.Properties.Name -contains 'config') {
+                    $config = $resp.config
+                    if ($null -ne $config -and $config.PSObject.Properties.Name -contains 'port') {
+                        $isHealthy = ([int]$config.port -eq $Port)
+                    }
+                }
+
+                if ($isHealthy) {
                     return @{
                         Success = $true
                         Host = $hostName
@@ -234,20 +352,7 @@ function Wait-ForHealth {
                     }
                 }
             }
-            catch {
-                # Try root as fallback
-                try {
-                    $resp = Invoke-WebRequest -Uri "http://${hostName}:${Port}/" -UseBasicParsing -TimeoutSec 2 -ErrorAction Stop
-                    if ($resp.StatusCode -eq 200) {
-                        return @{
-                            Success = $true
-                            Host = $hostName
-                            ResponseTime = ((Get-Date) - $startTime).TotalSeconds
-                        }
-                    }
-                }
-                catch { }
-            }
+            catch { }
         }
         
         Start-Sleep -Milliseconds 500
@@ -316,6 +421,8 @@ Export-ModuleMember -Function @(
     'Test-ManagedProcessRunning',
     'Get-ManagedProcess',
     'Stop-StaleProcesses',
+    'Get-PortListeners',
+    'Resolve-AvailablePort',
     'Wait-ForHealth',
     'Save-PidFile',
     'Remove-PidFile',

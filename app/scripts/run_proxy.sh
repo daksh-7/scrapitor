@@ -245,6 +245,23 @@ main() {
     
     # ── Stop Stale Processes ──────────────────────────────────────────────────
     stop_stale_processes "$CONFIG_PORT" "$CONFIG_VENV_PYTHON" "$CONFIG_PID_FILE" > /dev/null
+
+    local requested_port="$CONFIG_PORT"
+    local selected_port=""
+    selected_port=$(resolve_available_port "$requested_port" "$PYTHON_PATH")
+
+    if [[ -z "$selected_port" ]]; then
+        show_error_box "Port Selection Failed" \
+            "Could not find an available TCP port to start Scrapitor."
+        exit 1
+    fi
+
+    if [[ "$selected_port" != "$requested_port" ]]; then
+        CONFIG_PORT="$selected_port"
+        export PROXY_PORT="$CONFIG_PORT"
+
+        write_status "Port ${requested_port} in use, using :${CONFIG_PORT}" "Warning"
+    fi
     
     # ── Start Flask ───────────────────────────────────────────────────────────
     write_section "Starting Services"
@@ -284,10 +301,29 @@ main() {
     clear_spinner_line
     
     if [[ "$health_ok" != "true" ]]; then
-        show_error_box "Flask Health Check Failed" \
-            "Server did not respond within ${CONFIG_HEALTH_TIMEOUT} seconds." \
-            "" \
+        local -a port_conflicts=()
+        while IFS= read -r line; do
+            [[ -n "$line" ]] && port_conflicts+=("$line")
+        done < <(list_port_listeners "$CONFIG_PORT" "$flask_pid")
+
+        local -a details=(
+            "Server did not respond within ${CONFIG_HEALTH_TIMEOUT} seconds."
+            ""
             "Port ${CONFIG_PORT} may be in use."
+        )
+
+        local shown=0
+        local entry=""
+        for entry in "${port_conflicts[@]}"; do
+            IFS=$'\t' read -r addr pid cmd <<< "$entry"
+            details+=("[${addr}] PID ${pid} - ${cmd}")
+            ((shown += 1))
+            if (( shown >= 3 )); then
+                break
+            fi
+        done
+
+        show_error_box "Flask Health Check Failed" "${details[@]}"
         stop_all_managed_processes
         exit 1
     fi
