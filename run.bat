@@ -2,9 +2,8 @@
 setlocal EnableDelayedExpansion
 cd /d "%~dp0"
 
-:: ═══════════════════════════════════════════════════════════════════════════
-::  Scrapitor Launcher
-:: ═══════════════════════════════════════════════════════════════════════════
+:: Scrapitor launcher bootstrap.
+:: Keep this file ASCII-only; the PowerShell UI owns the styled output.
 
 :: Silent git update (if available)
 where git >nul 2>nul && if exist ".git" (
@@ -28,13 +27,10 @@ if not defined PS goto :no_pwsh
 start "" "%PS%" -NoLogo -NoProfile -ExecutionPolicy Bypass -File "%~dp0app\scripts\run_proxy.ps1"
 exit /b 0
 
-:: ═══════════════════════════════════════════════════════════════════════════
-::  Error: PowerShell 7 Required
-:: ═══════════════════════════════════════════════════════════════════════════
 :no_pwsh
 cls
 echo.
-echo   ════════════════════════════════════════════════════════════
+echo   ============================================================
 echo.
 echo     PowerShell 7 is required but was not found.
 echo.
@@ -43,7 +39,7 @@ echo       winget install Microsoft.PowerShell
 echo.
 echo     Then re-run this script.
 echo.
-echo   ════════════════════════════════════════════════════════════
+echo   ============================================================
 echo.
 pause
 exit /b 1
